@@ -1,0 +1,8 @@
+[submodule "market-frontend"]
+	path = market-frontend
+	url = https://github.com/yushiri/market-order.git
+	branch = dev
+[submodule "market-backend"]
+	path = market-backend
+	url = https://github.com/Wilpdrake/market-backend.git
+	branch = main

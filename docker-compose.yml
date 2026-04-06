@@ -1,0 +1,13 @@
+services:
+    nginx:
+        image: nginx:alpine-slim
+        ports:
+        - "80:80"
+        volumes:
+        - ./nginx.conf:/etc/nginx/nginx.conf
+    
+    #backend:
+    #    build: ./market-backend
+    
+    frontend:
+        image: node:latest
