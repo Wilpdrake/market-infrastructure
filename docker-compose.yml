@@ -5,9 +5,14 @@ services:
         - "80:80"
         volumes:
         - ./nginx.conf:/etc/nginx/nginx.conf
+        depends_on:
+        - frontend
     
     #backend:
     #    build: ./market-backend
     
     frontend:
-        image: node:latest
+        #image: node:latest
+        #working_dir: /market-frontend
+        #command: npm run dev
+        build: ./market-frontend
