@@ -8,8 +8,8 @@ services:
         depends_on:
         - frontend
     
-    #backend:
-    #    build: ./market-backend
+    backend:
+        build: ./market-backend
     
     frontend:
         #image: node:latest
