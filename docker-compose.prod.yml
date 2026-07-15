@@ -1,0 +1,43 @@
+# Прод-оверрайд: подключается поверх docker-compose.yml.
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+# Жёсткие лимиты ресурсов, ротация логов, осмысленная политика restart.
+services:
+    backend:
+        restart: unless-stopped
+        deploy:
+            resources:
+                limits:
+                    cpus: "1.0"
+                    memory: 512M
+                reservations:
+                    memory: 256M
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
+
+    frontend:
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
+
+    nginx:
+        restart: unless-stopped
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"
+
+    postgres:
+        restart: unless-stopped
+        # В проде БД НЕ пробрасывается на хост — только внутренняя сеть compose.
+        logging:
+            driver: json-file
+            options:
+                max-size: "10m"
+                max-file: "3"

@@ -1,0 +1,6 @@
+# Дев-оверрайд (опционально): пробрасывает БД на локальный хост для отладки.
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+services:
+    postgres:
+        ports:
+        - "5432:5432"
