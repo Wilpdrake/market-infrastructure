@@ -16,14 +16,8 @@ pipeline {
     }
 
     stages {
-        stage('Update submodules') {
-            steps {
-                sh '''
-                    git submodule sync --recursive
-                    git submodule update --init --remote --recursive
-                '''
-            }
-        }
+        // Проекты market-backend / market-frontend живут внутри репозитория
+        // как обычные папки (без git submodules) — дополнительная инициализация не нужна.
 
         stage('Validate') {
             steps {

@@ -1,0 +1,10 @@
+.idea
+.git
+.gitmodules
+**/.git
+**/__pycache__
+**/.venv
+**/.env
+**/.env.*
+**/node_modules
+**/dist
