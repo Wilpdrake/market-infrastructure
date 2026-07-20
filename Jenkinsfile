@@ -8,6 +8,10 @@ pipeline {
         timestamps()
     }
 
+    triggers {
+        githubPush()
+    }
+
     environment {
         // Сохраняет имя уже развёрнутого Compose-проекта и его volumes/network.
         COMPOSE_PROJECT_NAME = 'market'
