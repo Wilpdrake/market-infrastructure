@@ -12,7 +12,10 @@ services:
         - frontend
 
     backend:
-        build: ./market-backend
+        build:
+            context: ../market-backend
+            dockerfile: Dockerfile
+            target: production
         restart: always
         depends_on:
             postgres:
@@ -21,7 +24,10 @@ services:
             DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
 
     frontend:
-        build: ./market-frontend
+        build:
+            context: ../market-frontend
+            dockerfile: Dockerfile
+            target: production
 
     postgres:
         image: postgres:18
