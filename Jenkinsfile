@@ -16,10 +16,8 @@ pipeline {
         // Сохраняет имя уже развёрнутого Compose-проекта и его volumes/network.
         COMPOSE_PROJECT_NAME = 'market'
 
-        // Secret text credentials из Jenkins Credentials.
-        POSTGRES_USER     = credentials('market-postgres-user')
-        POSTGRES_PASSWORD = credentials('market-postgres-password')
-        POSTGRES_DB       = credentials('market-postgres-db')
+        // Защищённый production env-файл хранится только на Jenkins host.
+        COMPOSE_ENV_FILES = '/var/lib/jenkins/market.env'
     }
 
     stages {
