@@ -8,14 +8,16 @@ def telegramProgress(int stageIndex, String state = 'RUNNING') {
         UNSTABLE: '⚠️ Нестабильно',
         ABORTED: '⛔ Остановлено',
     ][state]
-    def stageList = stages.withIndex().collect { stage, index ->
+    def stageLines = []
+    for (int index = 0; index < stages.size(); index++) {
         def marker = state == 'SUCCESS' || index < stageIndex
             ? '✅'
             : index == stageIndex
                 ? (state == 'RUNNING' ? '🔄' : state == 'ABORTED' ? '⛔' : '❌')
                 : '⏳'
-        "${marker} ${stage}"
-    }.join('\n')
+        stageLines.add("${marker} ${stages[index]}")
+    }
+    def stageList = stageLines.join('\n')
     def message = "🛠 Jenkins ${env.JOB_NAME} #${env.BUILD_NUMBER}\n" +
         "Статус: ${status}\n" +
         "Текущая стадия: ${currentStage}\n\n" +
