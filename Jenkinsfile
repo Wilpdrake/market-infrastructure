@@ -12,13 +12,40 @@ def buildInitiator() {
 
         def causes = currentBuild.getBuildCauses()
         if (causes && causes[0].shortDescription) {
-            return causes[0].shortDescription
+            def description = causes[0].shortDescription
+            def githubPrefix = 'Started by GitHub push by '
+            return description.startsWith(githubPrefix)
+                ? description.substring(githubPrefix.length())
+                : description
         }
     } catch (Exception err) {
         echo "Cannot determine build initiator: ${err.getMessage()}"
     }
 
     return 'Неизвестно'
+}
+
+def gitRevisionLine(String path, String repository) {
+    dir(path) {
+        withEnv(["GIT_REPOSITORY=${repository}"]) {
+            return sh(
+                label: "Read ${repository} revision",
+                returnStdout: true,
+                script: '''
+                    set -eu
+                    branch="$(git branch --show-current)"
+                    if [ -z "$branch" ]; then
+                        branch="$(git name-rev --name-only HEAD)"
+                        branch="${branch#remotes/origin/}"
+                        branch="${branch#origin/}"
+                    fi
+                    commit="$(git rev-parse --short=8 HEAD)"
+                    subject="$(git log -1 --pretty=%s | cut -c1-100)"
+                    printf '• %s\n  %s · %s — %s\n' "$GIT_REPOSITORY" "$branch" "$commit" "$subject"
+                '''
+            ).trim()
+        }
+    }
 }
 
 def telegramProgress(int stageIndex, String state = 'RUNNING') {
@@ -42,10 +69,12 @@ def telegramProgress(int stageIndex, String state = 'RUNNING') {
     }
     def stageList = stageLines.join('\n')
     def initiator = buildInitiator()
+    def gitSummary = env.GIT_SUMMARY ?: '⏳ ожидается checkout'
     def message = "🛠 Jenkins ${env.JOB_NAME} #${env.BUILD_NUMBER}\n" +
         "Инициатор: ${initiator}\n" +
         "Статус: ${status}\n" +
         "Текущая стадия: ${currentStage}\n\n" +
+        "Git:\n${gitSummary}\n\n" +
         "Стадии:\n${stageList}"
 
     try {
@@ -150,6 +179,14 @@ pipeline {
                 dir('market-frontend') {
                     git branch: 'main',
                         url: 'git@github.com:yushiri/market-order.git'
+                }
+
+                script {
+                    env.GIT_SUMMARY = [
+                        gitRevisionLine('market-infrastructure', 'Wilpdrake/market-infrastructure'),
+                        gitRevisionLine('market-backend', 'wilpdrake/market-backend'),
+                        gitRevisionLine('market-frontend', 'yushiri/market-order'),
+                    ].join('\n')
                 }
             }
         }
