@@ -99,8 +99,6 @@ pipeline {
         POSTGRES_USER = credentials('postgres-user')
         POSTGRES_PASSWORD = credentials('postgres-password')
         POSTGRES_DB = credentials('postgres-db')
-        STAGE_INDEX = '0'
-        TELEGRAM_MESSAGE_ID = ''
     }
 
     stages {
