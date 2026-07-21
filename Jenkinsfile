@@ -63,7 +63,7 @@ def telegramProgress(int stageIndex, String state = 'RUNNING') {
                         if [ -n "$TELEGRAM_MESSAGE_ID_VALUE" ]; then
                             printf '%s\n' "$TELEGRAM_MESSAGE_ID_VALUE"
                         else
-                            grep -o '"message_id":[0-9][0-9]*' "$response_file" | cut -d: -f2
+                            jq -r '.result.message_id // empty' "$response_file"
                         fi
                     '''
                 ).trim()
