@@ -45,6 +45,18 @@ pipeline {
             }
         }
 
+        stage('Debug credentials') {
+            steps {
+                sh '''
+                    echo "USER=${POSTGRES_USER:+SET}"
+                    echo "PASS=${POSTGRES_PASSWORD:+SET}"
+                    echo "DB=${POSTGRES_DB:+SET}"
+
+                    env | grep POSTGRES || true
+                '''
+            }
+        }
+
         stage('Validate') {
             steps {
                 dir('market-infrastructure') {
