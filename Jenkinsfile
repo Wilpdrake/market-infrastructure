@@ -1,3 +1,26 @@
+def buildInitiator() {
+    try {
+        def githubCauses = currentBuild.getBuildCauses('com.cloudbees.jenkins.GitHubPushCause')
+        if (githubCauses && githubCauses[0].pushedBy) {
+            return githubCauses[0].pushedBy
+        }
+
+        def userCauses = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')
+        if (userCauses && userCauses[0].userName) {
+            return userCauses[0].userName
+        }
+
+        def causes = currentBuild.getBuildCauses()
+        if (causes && causes[0].shortDescription) {
+            return causes[0].shortDescription
+        }
+    } catch (Exception err) {
+        echo "Cannot determine build initiator: ${err.getMessage()}"
+    }
+
+    return 'Неизвестно'
+}
+
 def telegramProgress(int stageIndex, String state = 'RUNNING') {
     def stages = ['Checkout', 'Validate', 'Build', 'Deploy', 'Smoke test']
     def currentStage = state == 'SUCCESS' ? 'Completed' : stages[stageIndex]
@@ -18,7 +41,9 @@ def telegramProgress(int stageIndex, String state = 'RUNNING') {
         stageLines.add("${marker} ${stages[index]}")
     }
     def stageList = stageLines.join('\n')
+    def initiator = buildInitiator()
     def message = "🛠 Jenkins ${env.JOB_NAME} #${env.BUILD_NUMBER}\n" +
+        "Инициатор: ${initiator}\n" +
         "Статус: ${status}\n" +
         "Текущая стадия: ${currentStage}\n\n" +
         "Стадии:\n${stageList}"
