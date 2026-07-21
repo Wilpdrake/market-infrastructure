@@ -35,7 +35,7 @@ pipeline {
                 }
 
                 dir('market-frontend') {
-                    git branch: 'dev',
+                    git branch: 'main',
                         url: 'git@github.com:yushiri/market-order.git'
                 }
             }
