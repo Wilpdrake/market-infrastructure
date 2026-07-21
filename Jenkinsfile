@@ -17,7 +17,11 @@ pipeline {
         COMPOSE_PROJECT_NAME = 'market'
 
         // Защищённый production env-файл хранится только на Jenkins host.
-        COMPOSE_ENV_FILES = '/var/lib/jenkins/market.env'
+        // COMPOSE_ENV_FILES = '/var/lib/jenkins/market.env'
+
+        POSTGRES_USER = credentials('postgres-user')
+        POSTGRES_PASSWORD = credentials('postgres-password')
+        POSTGRES_DB = credentials('postgres-db')
     }
 
     stages {
