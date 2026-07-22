@@ -5,7 +5,7 @@ WORKSPACE_ROOT="${1:-${WORKSPACE:-$(pwd)}}"
 OUTPUT_FILE="${AI_REVIEW_OUTPUT:-$WORKSPACE_ROOT/market-infrastructure/reports/ai-security-review.md}"
 HERMES_BIN="${HERMES_BIN:-/var/lib/jenkins/.local/bin/hermes}"
 AI_MODEL="${AI_REVIEW_MODEL:-poolside/laguna-xs-2.1:free}"
-MAX_BUNDLE_BYTES="${AI_REVIEW_MAX_BYTES:-180000}"
+MAX_BUNDLE_BYTES="${AI_REVIEW_MAX_BYTES:-60000}"
 MAX_REPOSITORY_BYTES=$((MAX_BUNDLE_BYTES / 3))
 
 if [[ ! -x "$HERMES_BIN" ]]; then

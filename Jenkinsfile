@@ -295,7 +295,7 @@ pipeline {
                 }
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
                     dir('market-infrastructure') {
-                        sh 'chmod +x scripts/jenkins_ai_security_review.sh && timeout 8m scripts/jenkins_ai_security_review.sh "$WORKSPACE"'
+                        sh 'chmod +x scripts/jenkins_ai_security_review.sh && timeout 4m scripts/jenkins_ai_security_review.sh "$WORKSPACE"'
                     }
                 }
                 script {
