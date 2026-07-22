@@ -173,10 +173,14 @@ printf 'AI review context: %d files, %d-byte bundle, %d-byte query\n' \
 if [[ "$AI_PROVIDER" == 'openrouter' || "$AI_PROVIDER" == 'nous' ]]; then
     AI_SSH_PROXY_HOST="${AI_SSH_PROXY_HOST:-debian@213.155.22.151}"
     AI_SSH_PROXY_KEY="${AI_SSH_PROXY_KEY:-/var/lib/jenkins/.ssh/id_ed25519_market_ai_proxy}"
-    AI_SSH_PROXY_PORT="${AI_SSH_PROXY_PORT:-$((18000 + ${BUILD_NUMBER:-80} % 1000))}"
+    if [[ -n "${AI_SSH_PROXY_PORT:-}" ]]; then
+        ssh_proxy_port="$AI_SSH_PROXY_PORT"
+    else
+        ssh_proxy_port="$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()')"
+    fi
 
-    if [[ ! "$AI_SSH_PROXY_PORT" =~ ^[0-9]+$ ]] || ((AI_SSH_PROXY_PORT < 1024 || AI_SSH_PROXY_PORT > 65535)); then
-        echo "Invalid AI SSH proxy port: $AI_SSH_PROXY_PORT" >&2
+    if [[ ! "$ssh_proxy_port" =~ ^[0-9]+$ ]] || ((ssh_proxy_port < 1024 || ssh_proxy_port > 65535)); then
+        echo "Invalid AI SSH proxy port: $ssh_proxy_port" >&2
         exit 2
     fi
     if [[ ! -f "$AI_SSH_PROXY_KEY" ]]; then
@@ -186,7 +190,7 @@ if [[ "$AI_PROVIDER" == 'openrouter' || "$AI_PROVIDER" == 'nous' ]]; then
 
     ssh -f -N -M \
         -S "$ssh_control_socket" \
-        -D "127.0.0.1:$AI_SSH_PROXY_PORT" \
+        -D "127.0.0.1:$ssh_proxy_port" \
         -i "$AI_SSH_PROXY_KEY" \
         -o BatchMode=yes \
         -o ExitOnForwardFailure=yes \
@@ -196,7 +200,7 @@ if [[ "$AI_PROVIDER" == 'openrouter' || "$AI_PROVIDER" == 'nous' ]]; then
         "$AI_SSH_PROXY_HOST"
     ssh_proxy_started=true
 
-    proxy_url="socks5h://127.0.0.1:$AI_SSH_PROXY_PORT"
+    proxy_url="socks5h://127.0.0.1:$ssh_proxy_port"
     export ALL_PROXY="$proxy_url"
     export HTTPS_PROXY="$proxy_url"
     export HTTP_PROXY="$proxy_url"
