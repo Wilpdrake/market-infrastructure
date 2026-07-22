@@ -49,7 +49,7 @@ def gitRevisionLine(String path, String repository) {
 }
 
 def telegramProgress(int stageIndex, String state = 'RUNNING') {
-    def stages = ['Checkout', 'Validate', 'Build', 'Security scan', 'AI review', 'Deploy', 'Smoke test']
+    def stages = ['Checkout', 'Validate', 'Build', 'Security scan', 'AI review', 'Security gate', 'Deploy', 'Smoke test']
     def advisoryAiFailure = state == 'UNSTABLE' && env.AI_REVIEW_UNSTABLE == 'true'
     def currentStage = state == 'SUCCESS'
         ? 'Completed'
@@ -196,6 +196,8 @@ pipeline {
                     env.STAGE_INDEX = '0'
                     env.SECURITY_SUMMARY = '⏳ ожидается проверка'
                     env.AI_REVIEW_UNSTABLE = 'false'
+                    env.SECURITY_GATE_BLOCKED = 'false'
+                    env.SECURITY_GATE_REASON = ''
                     telegramProgress(0)
                 }
             }
@@ -300,9 +302,10 @@ pipeline {
                         if (parts.size() != 5) {
                             error("Unexpected Trivy summary: ${counts}")
                         }
-                        env.SECURITY_SUMMARY = "Trivy: critical ${parts[0]}, high ${parts[1]}, medium ${parts[2]}, secrets ${parts[3]}, misconfig ${parts[4]}\nLaguna XS 2.1: ⏳ ожидается"
+                        env.SECURITY_SUMMARY = "Trivy: critical ${parts[0]}, high ${parts[1]}, medium ${parts[2]}, secrets ${parts[3]}, misconfig ${parts[4]}\nTencent Hy3: ⏳ ожидается"
                         if (parts[0].toInteger() > 0 || parts[3].toInteger() > 0) {
-                            error("Security gate failed: ${parts[0]} critical vulnerabilities, ${parts[3]} secrets")
+                            env.SECURITY_GATE_BLOCKED = 'true'
+                            env.SECURITY_GATE_REASON = "${parts[0]} critical vulnerabilities, ${parts[3]} secrets"
                         }
                     }
                 }
@@ -316,8 +319,10 @@ pipeline {
                     telegramProgress(4)
                 }
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    dir('market-infrastructure') {
-                        sh 'chmod +x scripts/jenkins_ai_security_review.sh && timeout 4m scripts/jenkins_ai_security_review.sh "$WORKSPACE"'
+                    withCredentials([string(credentialsId: 'openrouter-api-key', variable: 'OPENROUTER_API_KEY')]) {
+                        dir('market-infrastructure') {
+                            sh 'chmod +x scripts/jenkins_ai_security_review.sh && timeout 4m scripts/jenkins_ai_security_review.sh "$WORKSPACE"'
+                        }
                     }
                 }
                 script {
@@ -325,20 +330,32 @@ pipeline {
                         env.AI_REVIEW_UNSTABLE = 'true'
                     }
                     def aiSummary = sh(
-                        label: 'Read Laguna security summary',
+                        label: 'Read Hy3 security summary',
                         returnStdout: true,
                         script: '''
                             report="$WORKSPACE/market-infrastructure/reports/ai-security-review.md"
                             if [ -f "$report" ]; then
                                 grep -m1 '^AI_SECURITY_SUMMARY:' "$report" \
-                                    | sed 's/^AI_SECURITY_SUMMARY: /Laguna XS 2.1: /' \
-                                    || printf 'Laguna XS 2.1: INCONCLUSIVE\n'
+                                    | sed 's/^AI_SECURITY_SUMMARY: /Tencent Hy3: /' \
+                                    || printf 'Tencent Hy3: INCONCLUSIVE\n'
                             else
-                                printf 'Laguna XS 2.1: INCONCLUSIVE\n'
+                                printf 'Tencent Hy3: INCONCLUSIVE\n'
                             fi
                         '''
                     ).trim()
-                    env.SECURITY_SUMMARY = env.SECURITY_SUMMARY.replace('Laguna XS 2.1: ⏳ ожидается', aiSummary)
+                    env.SECURITY_SUMMARY = env.SECURITY_SUMMARY.replace('Tencent Hy3: ⏳ ожидается', aiSummary)
+                }
+            }
+        }
+
+        stage('Security gate') {
+            steps {
+                script {
+                    env.STAGE_INDEX = '5'
+                    telegramProgress(5)
+                    if (env.SECURITY_GATE_BLOCKED == 'true') {
+                        error("Security gate failed: ${env.SECURITY_GATE_REASON}")
+                    }
                 }
             }
         }
@@ -346,8 +363,8 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    env.STAGE_INDEX = '5'
-                    telegramProgress(5)
+                    env.STAGE_INDEX = '6'
+                    telegramProgress(6)
                 }
                 dir('market-infrastructure') {
                     sh 'docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans'
@@ -358,8 +375,8 @@ pipeline {
         stage('Smoke test') {
             steps {
                 script {
-                    env.STAGE_INDEX = '6'
-                    telegramProgress(6)
+                    env.STAGE_INDEX = '7'
+                    telegramProgress(7)
                 }
                 sh '''
                     set -eu
@@ -386,7 +403,7 @@ pipeline {
             )
         }
         success {
-            script { telegramProgress(6, 'SUCCESS') }
+            script { telegramProgress(7, 'SUCCESS') }
         }
         failure {
             script { telegramProgress(env.STAGE_INDEX.toInteger(), 'FAILURE') }
