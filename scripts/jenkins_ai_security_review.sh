@@ -102,7 +102,8 @@ AI_SECURITY_SUMMARY: CRITICAL=N HIGH=N MEDIUM=N LOW=N
 PROMPT
 cat "$bundle_file" >> "$prompt_file"
 
-"$HERMES_BIN" chat \
+set +e
+timeout "${AI_REVIEW_TIMEOUT:-230}" "$HERMES_BIN" chat \
     --provider nous \
     --model "$AI_MODEL" \
     --toolsets safe \
@@ -111,6 +112,19 @@ cat "$bundle_file" >> "$prompt_file"
     --source tool \
     --quiet \
     --query "$(cat "$prompt_file")" > "$response_file"
+hermes_exit=$?
+set -e
+
+if ((hermes_exit != 0)); then
+    {
+        echo 'AI_SECURITY_STATUS: INCONCLUSIVE'
+        echo 'AI_SECURITY_SUMMARY: CRITICAL=0 HIGH=0 MEDIUM=0 LOW=0'
+        echo
+        printf '> Hermes/Laguna завершился с кодом `%d`; AI-проверка требует повторного запуска.\n' "$hermes_exit"
+    } > "$OUTPUT_FILE"
+    echo "Hermes/Laguna failed with exit code $hermes_exit; report written to $OUTPUT_FILE" >&2
+    exit 1
+fi
 
 if ! grep -Eq '^AI_SECURITY_STATUS: (CLEAN|FINDINGS|INCONCLUSIVE)$' "$response_file" \
     || ! grep -Eq '^AI_SECURITY_SUMMARY: CRITICAL=[0-9]+ HIGH=[0-9]+ MEDIUM=[0-9]+ LOW=[0-9]+$' "$response_file"; then
