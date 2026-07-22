@@ -146,6 +146,28 @@ def telegramProgress(int stageIndex, String state = 'RUNNING') {
     }
 }
 
+def telegramSecurityReport() {
+    try {
+        withCredentials([string(credentialsId: 'telegram-bot-token', variable: 'TELEGRAM_BOT_TOKEN')]) {
+            withEnv([
+                "TELEGRAM_MESSAGE_ID_VALUE=${env.TELEGRAM_MESSAGE_ID ?: ''}",
+                "BUILD_RESULT=${currentBuild.currentResult}",
+            ]) {
+                sh(
+                    label: 'Send Telegram security report',
+                    script: '''
+                        set +x
+                        chmod +x market-infrastructure/scripts/jenkins_send_security_report.sh
+                        market-infrastructure/scripts/jenkins_send_security_report.sh "$WORKSPACE"
+                    '''
+                )
+            }
+        }
+    } catch (Exception err) {
+        echo "Telegram security report error: ${err.getMessage()}; the pipeline continues."
+    }
+}
+
 pipeline {
     agent any
 
@@ -357,6 +379,7 @@ pipeline {
 
     post {
         always {
+            script { telegramSecurityReport() }
             archiveArtifacts(
                 artifacts: 'market-infrastructure/reports/**',
                 allowEmptyArchive: true
