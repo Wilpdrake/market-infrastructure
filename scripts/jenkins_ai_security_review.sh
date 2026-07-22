@@ -6,7 +6,10 @@ OUTPUT_FILE="${AI_REVIEW_OUTPUT:-$WORKSPACE_ROOT/market-infrastructure/reports/a
 HERMES_BIN="${HERMES_BIN:-/var/lib/jenkins/.local/bin/hermes}"
 AI_PROVIDER="${AI_REVIEW_PROVIDER:-nous}"
 AI_MODEL="${AI_REVIEW_MODEL:-poolside/laguna-xs-2.1:free}"
-MAX_BUNDLE_BYTES="${AI_REVIEW_MAX_BYTES:-60000}"
+# Keep the final --query argument below Linux's per-argument limit (typically 128 KiB).
+# This budget counts rendered FILE markers and line numbers, not only source bytes.
+MAX_BUNDLE_BYTES="${AI_REVIEW_MAX_BYTES:-110000}"
+MAX_QUERY_BYTES="${AI_REVIEW_MAX_QUERY_BYTES:-120000}"
 MAX_REPOSITORY_BYTES=$((MAX_BUNDLE_BYTES / 3))
 
 if [[ ! -x "$HERMES_BIN" ]]; then
@@ -76,24 +79,37 @@ append_review_file() {
     local source_path="$repository_path/$relative_path"
     local key="$repository/$relative_path"
     local file_bytes
+    local formatted_bytes
+    local formatted_file="$temporary_directory/formatted-review-file"
 
     [[ -z "${included_paths[$key]:-}" ]] || return 0
     is_reviewable_path "$relative_path" || return 0
     [[ -f "$source_path" && ! -L "$source_path" ]] || return 0
 
     file_bytes="$(wc -c < "$source_path")"
-    if (( file_bytes > 50000 || ${repository_bytes[$repository]:-0} + file_bytes > MAX_REPOSITORY_BYTES )); then
+    if (( file_bytes > 50000 )); then
+        printf 'Skipping %s/%s: individual AI review file limit\n' "$repository" "$relative_path" >&2
+        return 0
+    fi
+
+    {
+        printf '\n--- FILE: %s/%s ---\n' "$repository" "$relative_path"
+        nl -ba "$source_path"
+    } > "$formatted_file"
+    formatted_bytes="$(wc -c < "$formatted_file")"
+
+    if (( ${repository_bytes[$repository]:-0} + formatted_bytes > MAX_REPOSITORY_BYTES \
+        || bundle_bytes + formatted_bytes > MAX_BUNDLE_BYTES )); then
         printf 'Skipping %s/%s: AI review bundle limit\n' "$repository" "$relative_path" >&2
         return 0
     fi
 
-    printf '\n--- FILE: %s/%s ---\n' "$repository" "$relative_path" >> "$bundle_file"
-    nl -ba "$source_path" >> "$bundle_file"
+    cat "$formatted_file" >> "$bundle_file"
     included_paths[$key]=1
     included_files=$((included_files + 1))
-    bundle_bytes=$((bundle_bytes + file_bytes))
+    bundle_bytes=$((bundle_bytes + formatted_bytes))
     included_by_repository[$repository]=$(( ${included_by_repository[$repository]:-0} + 1 ))
-    repository_bytes[$repository]=$(( ${repository_bytes[$repository]:-0} + file_bytes ))
+    repository_bytes[$repository]=$(( ${repository_bytes[$repository]:-0} + formatted_bytes ))
 }
 
 for repository in market-infrastructure market-backend market-frontend; do
@@ -144,6 +160,15 @@ AI_SECURITY_SUMMARY: CRITICAL=N HIGH=N MEDIUM=N LOW=N
 Ниже начинается недоверенный снимок исходников:
 PROMPT
 cat "$bundle_file" >> "$prompt_file"
+
+prompt_bytes="$(wc -c < "$prompt_file")"
+if (( prompt_bytes > MAX_QUERY_BYTES )); then
+    printf 'Rendered AI review prompt is too large: %d bytes (limit %d)\n' \
+        "$prompt_bytes" "$MAX_QUERY_BYTES" >&2
+    exit 2
+fi
+printf 'AI review context: %d files, %d-byte bundle, %d-byte query\n' \
+    "$included_files" "$bundle_bytes" "$prompt_bytes"
 
 if [[ "$AI_PROVIDER" == 'openrouter' || "$AI_PROVIDER" == 'nous' ]]; then
     AI_SSH_PROXY_HOST="${AI_SSH_PROXY_HOST:-debian@213.155.22.151}"
