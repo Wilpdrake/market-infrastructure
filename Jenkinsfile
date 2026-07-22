@@ -49,8 +49,13 @@ def gitRevisionLine(String path, String repository) {
 }
 
 def telegramProgress(int stageIndex, String state = 'RUNNING') {
-    def stages = ['Checkout', 'Validate', 'Build', 'Deploy', 'Smoke test']
-    def currentStage = state == 'SUCCESS' ? 'Completed' : stages[stageIndex]
+    def stages = ['Checkout', 'Validate', 'Build', 'Security scan', 'AI review', 'Deploy', 'Smoke test']
+    def advisoryAiFailure = state == 'UNSTABLE' && env.AI_REVIEW_UNSTABLE == 'true'
+    def currentStage = state == 'SUCCESS'
+        ? 'Completed'
+        : advisoryAiFailure
+            ? 'AI review (advisory)'
+            : stages[stageIndex]
     def status = [
         RUNNING: '🔄 Выполняется',
         SUCCESS: '✅ Успешно',
@@ -60,21 +65,28 @@ def telegramProgress(int stageIndex, String state = 'RUNNING') {
     ][state]
     def stageLines = []
     for (int index = 0; index < stages.size(); index++) {
-        def marker = state == 'SUCCESS' || index < stageIndex
-            ? '✅'
-            : index == stageIndex
-                ? (state == 'RUNNING' ? '🔄' : state == 'ABORTED' ? '⛔' : '❌')
-                : '⏳'
+        def marker
+        if (advisoryAiFailure) {
+            marker = index == 4 ? '⚠️' : index <= stageIndex ? '✅' : '⏳'
+        } else {
+            marker = state == 'SUCCESS' || index < stageIndex
+                ? '✅'
+                : index == stageIndex
+                    ? (state == 'RUNNING' ? '🔄' : state == 'ABORTED' ? '⛔' : state == 'UNSTABLE' ? '⚠️' : '❌')
+                    : '⏳'
+        }
         stageLines.add("${marker} ${stages[index]}")
     }
     def stageList = stageLines.join('\n')
     def initiator = buildInitiator()
     def gitSummary = env.GIT_SUMMARY ?: '⏳ ожидается checkout'
+    def securitySummary = env.SECURITY_SUMMARY ?: '⏳ ожидается проверка'
     def message = "🛠 Jenkins ${env.JOB_NAME} #${env.BUILD_NUMBER}\n" +
         "Инициатор: ${initiator}\n" +
         "Статус: ${status}\n" +
         "Текущая стадия: ${currentStage}\n\n" +
         "Git:\n${gitSummary}\n\n" +
+        "Безопасность:\n${securitySummary}\n\n" +
         "Стадии:\n${stageList}"
 
     try {
@@ -158,7 +170,12 @@ pipeline {
     stages {
         stage('Notify start') {
             steps {
-                script { telegramProgress(0) }
+                script {
+                    env.STAGE_INDEX = '0'
+                    env.SECURITY_SUMMARY = '⏳ ожидается проверка'
+                    env.AI_REVIEW_UNSTABLE = 'false'
+                    telegramProgress(0)
+                }
             }
         }
 
@@ -215,11 +232,100 @@ pipeline {
             }
         }
 
-        stage('Deploy') {
+        stage('Security scan') {
             steps {
                 script {
                     env.STAGE_INDEX = '3'
                     telegramProgress(3)
+                }
+                dir('market-infrastructure') {
+                    sh '''
+                        set -eu
+                        mkdir -p reports
+                        docker run --rm \
+                            -v "$WORKSPACE:/workspace:ro" \
+                            -v "$WORKSPACE/market-infrastructure/reports:/reports" \
+                            -v market-trivy-cache:/root/.cache/trivy \
+                            aquasec/trivy:0.66.0@sha256:086971aaf400beebd94e8300fd8ea623774419597169156cec56eec5b00dfb1e fs \
+                            --scanners vuln,secret,misconfig \
+                            --quiet \
+                            --skip-version-check \
+                            --format json \
+                            --output /reports/trivy.json \
+                            --skip-dirs /workspace/market-infrastructure/.git \
+                            --skip-dirs /workspace/market-backend/.git \
+                            --skip-dirs /workspace/market-frontend/.git \
+                            /workspace
+                    '''
+                    script {
+                        def counts = sh(
+                            label: 'Summarize deterministic security findings',
+                            returnStdout: true,
+                            script: '''
+                                set -eu
+                                jq -r '
+                                    [(.Results[]?.Vulnerabilities[]? | .Severity)] as $v |
+                                    [(.Results[]?.Secrets[]?)] as $s |
+                                    [(.Results[]?.Misconfigurations[]? | select(.Status != "PASS"))] as $m |
+                                    "\\([$v[] | select(. == "CRITICAL")] | length)|" +
+                                    "\\([$v[] | select(. == "HIGH")] | length)|" +
+                                    "\\([$v[] | select(. == "MEDIUM")] | length)|" +
+                                    "\\($s | length)|\\($m | length)"
+                                ' reports/trivy.json
+                            '''
+                        ).trim()
+                        def parts = counts.tokenize('|')
+                        if (parts.size() != 5) {
+                            error("Unexpected Trivy summary: ${counts}")
+                        }
+                        env.SECURITY_SUMMARY = "Trivy: critical ${parts[0]}, high ${parts[1]}, medium ${parts[2]}, secrets ${parts[3]}, misconfig ${parts[4]}\nLaguna XS 2.1: ⏳ ожидается"
+                        if (parts[0].toInteger() > 0 || parts[3].toInteger() > 0) {
+                            error("Security gate failed: ${parts[0]} critical vulnerabilities, ${parts[3]} secrets")
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('AI review') {
+            steps {
+                script {
+                    env.STAGE_INDEX = '4'
+                    telegramProgress(4)
+                }
+                catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
+                    dir('market-infrastructure') {
+                        sh 'chmod +x scripts/jenkins_ai_security_review.sh && timeout 8m scripts/jenkins_ai_security_review.sh "$WORKSPACE"'
+                    }
+                }
+                script {
+                    if (currentBuild.currentResult == 'UNSTABLE') {
+                        env.AI_REVIEW_UNSTABLE = 'true'
+                    }
+                    def aiSummary = sh(
+                        label: 'Read Laguna security summary',
+                        returnStdout: true,
+                        script: '''
+                            report="$WORKSPACE/market-infrastructure/reports/ai-security-review.md"
+                            if [ -f "$report" ]; then
+                                grep -m1 '^AI_SECURITY_SUMMARY:' "$report" \
+                                    | sed 's/^AI_SECURITY_SUMMARY: /Laguna XS 2.1: /' \
+                                    || printf 'Laguna XS 2.1: INCONCLUSIVE\n'
+                            else
+                                printf 'Laguna XS 2.1: INCONCLUSIVE\n'
+                            fi
+                        '''
+                    ).trim()
+                    env.SECURITY_SUMMARY = env.SECURITY_SUMMARY.replace('Laguna XS 2.1: ⏳ ожидается', aiSummary)
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    env.STAGE_INDEX = '5'
+                    telegramProgress(5)
                 }
                 dir('market-infrastructure') {
                     sh 'docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans'
@@ -230,8 +336,8 @@ pipeline {
         stage('Smoke test') {
             steps {
                 script {
-                    env.STAGE_INDEX = '4'
-                    telegramProgress(4)
+                    env.STAGE_INDEX = '6'
+                    telegramProgress(6)
                 }
                 sh '''
                     set -eu
@@ -250,8 +356,14 @@ pipeline {
     }
 
     post {
+        always {
+            archiveArtifacts(
+                artifacts: 'market-infrastructure/reports/**',
+                allowEmptyArchive: true
+            )
+        }
         success {
-            script { telegramProgress(4, 'SUCCESS') }
+            script { telegramProgress(6, 'SUCCESS') }
         }
         failure {
             script { telegramProgress(env.STAGE_INDEX.toInteger(), 'FAILURE') }
