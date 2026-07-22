@@ -136,6 +136,32 @@ AI_SECURITY_SUMMARY: CRITICAL=N HIGH=N MEDIUM=N LOW=N
 PROMPT
 cat "$bundle_file" >> "$prompt_file"
 
+if [[ "$AI_PROVIDER" == 'openrouter' ]]; then
+    openrouter_probe="$temporary_directory/openrouter-probe.json"
+    set +e
+    openrouter_http_code="$(curl --silent --show-error \
+        --output "$openrouter_probe" \
+        --write-out '%{http_code}' \
+        --connect-timeout 10 \
+        --max-time 20 \
+        'https://openrouter.ai/api/v1/models')"
+    openrouter_probe_exit=$?
+    set -e
+
+    if ((openrouter_probe_exit != 0)) || [[ "$openrouter_http_code" != '200' ]]; then
+        {
+            echo 'AI_SECURITY_STATUS: INCONCLUSIVE'
+            echo 'AI_SECURITY_SUMMARY: CRITICAL=0 HIGH=0 MEDIUM=0 LOW=0'
+            echo
+            printf '> OpenRouter недоступен с Jenkins host (curl exit `%d`, HTTP `%s`). ' \
+                "$openrouter_probe_exit" "${openrouter_http_code:-000}"
+            echo 'Проверьте региональную сетевую политику или настройте разрешённый HTTPS proxy.'
+        } > "$OUTPUT_FILE"
+        echo "OpenRouter preflight failed (curl exit $openrouter_probe_exit, HTTP ${openrouter_http_code:-000}); report written to $OUTPUT_FILE" >&2
+        exit 1
+    fi
+fi
+
 set +e
 timeout "${AI_REVIEW_TIMEOUT:-230}" "$HERMES_BIN" chat \
     --provider "$AI_PROVIDER" \
