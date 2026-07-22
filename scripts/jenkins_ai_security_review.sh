@@ -23,7 +23,16 @@ done
 
 mkdir -p "$(dirname "$OUTPUT_FILE")"
 temporary_directory="$(mktemp -d)"
-trap 'rm -rf "$temporary_directory"' EXIT
+ssh_proxy_started=false
+ssh_control_socket="$temporary_directory/ssh-control"
+
+cleanup() {
+    if [[ "$ssh_proxy_started" == 'true' ]]; then
+        ssh -S "$ssh_control_socket" -O exit "$AI_SSH_PROXY_HOST" >/dev/null 2>&1 || true
+    fi
+    rm -rf "$temporary_directory"
+}
+trap cleanup EXIT
 bundle_file="$temporary_directory/source-bundle.txt"
 prompt_file="$temporary_directory/prompt.txt"
 response_file="$temporary_directory/response.md"
@@ -137,6 +146,39 @@ PROMPT
 cat "$bundle_file" >> "$prompt_file"
 
 if [[ "$AI_PROVIDER" == 'openrouter' ]]; then
+    AI_SSH_PROXY_HOST="${AI_SSH_PROXY_HOST:-debian@213.155.22.151}"
+    AI_SSH_PROXY_KEY="${AI_SSH_PROXY_KEY:-/var/lib/jenkins/.ssh/id_ed25519_market_ai_proxy}"
+    AI_SSH_PROXY_PORT="${AI_SSH_PROXY_PORT:-$((18000 + ${BUILD_NUMBER:-80} % 1000))}"
+
+    if [[ ! "$AI_SSH_PROXY_PORT" =~ ^[0-9]+$ ]] || ((AI_SSH_PROXY_PORT < 1024 || AI_SSH_PROXY_PORT > 65535)); then
+        echo "Invalid AI SSH proxy port: $AI_SSH_PROXY_PORT" >&2
+        exit 2
+    fi
+    if [[ ! -f "$AI_SSH_PROXY_KEY" ]]; then
+        echo "AI SSH proxy key not found: $AI_SSH_PROXY_KEY" >&2
+        exit 2
+    fi
+
+    ssh -f -N -M \
+        -S "$ssh_control_socket" \
+        -D "127.0.0.1:$AI_SSH_PROXY_PORT" \
+        -i "$AI_SSH_PROXY_KEY" \
+        -o BatchMode=yes \
+        -o ExitOnForwardFailure=yes \
+        -o StrictHostKeyChecking=yes \
+        -o ServerAliveInterval=15 \
+        -o ServerAliveCountMax=3 \
+        "$AI_SSH_PROXY_HOST"
+    ssh_proxy_started=true
+
+    proxy_url="socks5h://127.0.0.1:$AI_SSH_PROXY_PORT"
+    export ALL_PROXY="$proxy_url"
+    export HTTPS_PROXY="$proxy_url"
+    export HTTP_PROXY="$proxy_url"
+    export all_proxy="$proxy_url"
+    export https_proxy="$proxy_url"
+    export http_proxy="$proxy_url"
+
     openrouter_probe="$temporary_directory/openrouter-probe.json"
     set +e
     openrouter_http_code="$(curl --silent --show-error \

@@ -319,17 +319,10 @@ pipeline {
                     telegramProgress(4)
                 }
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    withCredentials([
-                        string(credentialsId: 'openrouter-api-key', variable: 'OPENROUTER_API_KEY'),
-                        string(credentialsId: 'ai-https-proxy-url', variable: 'AI_HTTPS_PROXY_URL'),
-                    ]) {
+                    withCredentials([string(credentialsId: 'openrouter-api-key', variable: 'OPENROUTER_API_KEY')]) {
                         dir('market-infrastructure') {
                             sh '''
                                 set +x
-                                export HTTPS_PROXY="$AI_HTTPS_PROXY_URL"
-                                export HTTP_PROXY="$AI_HTTPS_PROXY_URL"
-                                export https_proxy="$AI_HTTPS_PROXY_URL"
-                                export http_proxy="$AI_HTTPS_PROXY_URL"
                                 chmod +x scripts/jenkins_ai_security_review.sh
                                 timeout 4m scripts/jenkins_ai_security_review.sh "$WORKSPACE"
                             '''
