@@ -4,8 +4,8 @@ set -euo pipefail
 WORKSPACE_ROOT="${1:-${WORKSPACE:-$(pwd)}}"
 OUTPUT_FILE="${AI_REVIEW_OUTPUT:-$WORKSPACE_ROOT/market-infrastructure/reports/ai-security-review.md}"
 HERMES_BIN="${HERMES_BIN:-/var/lib/jenkins/.local/bin/hermes}"
-AI_PROVIDER="${AI_REVIEW_PROVIDER:-openrouter}"
-AI_MODEL="${AI_REVIEW_MODEL:-tencent/hy3:free}"
+AI_PROVIDER="${AI_REVIEW_PROVIDER:-nous}"
+AI_MODEL="${AI_REVIEW_MODEL:-poolside/laguna-xs-2.1:free}"
 MAX_BUNDLE_BYTES="${AI_REVIEW_MAX_BYTES:-60000}"
 MAX_REPOSITORY_BYTES=$((MAX_BUNDLE_BYTES / 3))
 
@@ -145,7 +145,7 @@ AI_SECURITY_SUMMARY: CRITICAL=N HIGH=N MEDIUM=N LOW=N
 PROMPT
 cat "$bundle_file" >> "$prompt_file"
 
-if [[ "$AI_PROVIDER" == 'openrouter' ]]; then
+if [[ "$AI_PROVIDER" == 'openrouter' || "$AI_PROVIDER" == 'nous' ]]; then
     AI_SSH_PROXY_HOST="${AI_SSH_PROXY_HOST:-debian@213.155.22.151}"
     AI_SSH_PROXY_KEY="${AI_SSH_PROXY_KEY:-/var/lib/jenkins/.ssh/id_ed25519_market_ai_proxy}"
     AI_SSH_PROXY_PORT="${AI_SSH_PROXY_PORT:-$((18000 + ${BUILD_NUMBER:-80} % 1000))}"
@@ -178,7 +178,9 @@ if [[ "$AI_PROVIDER" == 'openrouter' ]]; then
     export all_proxy="$proxy_url"
     export https_proxy="$proxy_url"
     export http_proxy="$proxy_url"
+fi
 
+if [[ "$AI_PROVIDER" == 'openrouter' ]]; then
     openrouter_probe="$temporary_directory/openrouter-probe.json"
     set +e
     openrouter_http_code="$(curl --silent --show-error \

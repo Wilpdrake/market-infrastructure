@@ -83,7 +83,7 @@ mkdir -p "$REPORTS_DIR"
     fi
 
     echo
-    echo '=== TENCENT HY3 AI REVIEW ==='
+    echo '=== NOUS LAGUNA AI REVIEW ==='
     if [[ -s "$AI_REPORT" ]]; then
         sed -n '1,1200p' "$AI_REPORT"
     else

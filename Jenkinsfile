@@ -302,7 +302,7 @@ pipeline {
                         if (parts.size() != 5) {
                             error("Unexpected Trivy summary: ${counts}")
                         }
-                        env.SECURITY_SUMMARY = "Trivy: critical ${parts[0]}, high ${parts[1]}, medium ${parts[2]}, secrets ${parts[3]}, misconfig ${parts[4]}\nTencent Hy3: ⏳ ожидается"
+                        env.SECURITY_SUMMARY = "Trivy: critical ${parts[0]}, high ${parts[1]}, medium ${parts[2]}, secrets ${parts[3]}, misconfig ${parts[4]}\nNous Laguna: ⏳ ожидается"
                         if (parts[0].toInteger() > 0 || parts[3].toInteger() > 0) {
                             env.SECURITY_GATE_BLOCKED = 'true'
                             env.SECURITY_GATE_REASON = "${parts[0]} critical vulnerabilities, ${parts[3]} secrets"
@@ -319,14 +319,12 @@ pipeline {
                     telegramProgress(4)
                 }
                 catchError(buildResult: 'UNSTABLE', stageResult: 'FAILURE') {
-                    withCredentials([string(credentialsId: 'openrouter-api-key', variable: 'OPENROUTER_API_KEY')]) {
-                        dir('market-infrastructure') {
-                            sh '''
-                                set +x
-                                chmod +x scripts/jenkins_ai_security_review.sh
-                                timeout 4m scripts/jenkins_ai_security_review.sh "$WORKSPACE"
-                            '''
-                        }
+                    dir('market-infrastructure') {
+                        sh '''
+                            set +x
+                            chmod +x scripts/jenkins_ai_security_review.sh
+                            timeout 4m scripts/jenkins_ai_security_review.sh "$WORKSPACE"
+                        '''
                     }
                 }
                 script {
@@ -334,20 +332,20 @@ pipeline {
                         env.AI_REVIEW_UNSTABLE = 'true'
                     }
                     def aiSummary = sh(
-                        label: 'Read Hy3 security summary',
+                        label: 'Read Laguna security summary',
                         returnStdout: true,
                         script: '''
                             report="$WORKSPACE/market-infrastructure/reports/ai-security-review.md"
                             if [ -f "$report" ]; then
                                 grep -m1 '^AI_SECURITY_SUMMARY:' "$report" \
-                                    | sed 's/^AI_SECURITY_SUMMARY: /Tencent Hy3: /' \
-                                    || printf 'Tencent Hy3: INCONCLUSIVE\n'
+                                    | sed 's/^AI_SECURITY_SUMMARY: /Nous Laguna: /' \
+                                    || printf 'Nous Laguna: INCONCLUSIVE\n'
                             else
-                                printf 'Tencent Hy3: INCONCLUSIVE\n'
+                                printf 'Nous Laguna: INCONCLUSIVE\n'
                             fi
                         '''
                     ).trim()
-                    env.SECURITY_SUMMARY = env.SECURITY_SUMMARY.replace('Tencent Hy3: ⏳ ожидается', aiSummary)
+                    env.SECURITY_SUMMARY = env.SECURITY_SUMMARY.replace('Nous Laguna: ⏳ ожидается', aiSummary)
                 }
             }
         }
