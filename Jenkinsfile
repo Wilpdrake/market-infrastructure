@@ -187,6 +187,9 @@ pipeline {
         POSTGRES_USER = credentials('postgres-user')
         POSTGRES_PASSWORD = credentials('postgres-password')
         POSTGRES_DB = credentials('postgres-db')
+        BACKEND_SECRET_KEY = credentials('backend-secret-key')
+        FIRST_SUPERUSER_EMAIL = credentials('first-superuser-email')
+        FIRST_SUPERUSER_PASSWORD = credentials('first-superuser-password')
     }
 
     stages {
@@ -369,7 +372,29 @@ pipeline {
                     telegramProgress(6)
                 }
                 dir('market-infrastructure') {
-                    sh 'docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans'
+                    sh '''
+                        set +x
+                        set -eu
+                        umask 077
+
+                        quote_env() {
+                            jq -Rrn --arg value "$1" '$value | @json'
+                        }
+
+                        {
+                            printf 'POSTGRES_USER=%s\n' "$(quote_env "$POSTGRES_USER")"
+                            printf 'POSTGRES_PASSWORD=%s\n' "$(quote_env "$POSTGRES_PASSWORD")"
+                            printf 'POSTGRES_DB=%s\n' "$(quote_env "$POSTGRES_DB")"
+                            printf 'BACKEND_SECRET_KEY=%s\n' "$(quote_env "$BACKEND_SECRET_KEY")"
+                            printf 'FIRST_SUPERUSER_EMAIL=%s\n' "$(quote_env "$FIRST_SUPERUSER_EMAIL")"
+                            printf 'FIRST_SUPERUSER_PASSWORD=%s\n' "$(quote_env "$FIRST_SUPERUSER_PASSWORD")"
+                            printf 'FIRST_SUPERUSER_NAME=%s\n' 'Admin'
+                            printf 'FIRST_SUPERUSER_SURNAME=%s\n' 'Administrator'
+                        } > .env
+
+                        test "$(stat -c '%a' .env)" = '600'
+                        docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+                    '''
                 }
             }
         }
