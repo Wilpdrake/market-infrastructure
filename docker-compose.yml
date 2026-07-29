@@ -38,7 +38,7 @@ services:
 
     frontend:
         build:
-            context: ../market-frontend
+            context: ${FRONTEND_CONTEXT:-../market-frontend}
             dockerfile: Dockerfile
             target: production
 

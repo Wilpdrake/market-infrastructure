@@ -376,6 +376,20 @@ pipeline {
                         set +x
                         set -eu
                         umask 077
+                        trap 'rm -f .env' EXIT
+
+                        test "${#BACKEND_SECRET_KEY}" -ge 16 || {
+                            echo 'BACKEND_SECRET_KEY must contain at least 16 characters' >&2
+                            exit 1
+                        }
+                        test "${#FIRST_SUPERUSER_PASSWORD}" -ge 8 || {
+                            echo 'FIRST_SUPERUSER_PASSWORD must contain at least 8 characters' >&2
+                            exit 1
+                        }
+                        case "$FIRST_SUPERUSER_EMAIL" in
+                            *@*) ;;
+                            *) echo 'FIRST_SUPERUSER_EMAIL must be an email address' >&2; exit 1 ;;
+                        esac
 
                         quote_env() {
                             jq -Rrn --arg value "$1" '$value | @json'
@@ -408,13 +422,24 @@ pipeline {
                 sh '''
                     set -eu
                     for attempt in $(seq 1 30); do
-                        if curl -fsS http://127.0.0.1/ >/dev/null; then
+                        if curl -fsS --connect-timeout 2 --max-time 5 \
+                            http://127.0.0.1/ >/dev/null \
+                            && curl -fsS --connect-timeout 2 --max-time 5 \
+                            http://127.0.0.1/api/v1/health/live >/dev/null \
+                            && curl -fsS --connect-timeout 2 --max-time 5 \
+                            http://127.0.0.1/api/v1/products >/dev/null \
+                            && curl -fsS --connect-timeout 2 --max-time 5 \
+                            http://127.0.0.1/openapi.json \
+                            | jq -e '.openapi and (.paths | has("/api/v1/health/live"))' \
+                            >/dev/null; then
                             exit 0
                         fi
                         sleep 2
                     done
 
                     echo "Production smoke test failed" >&2
+                    docker ps -a --filter 'name=market-' \
+                        --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' >&2
                     exit 1
                 '''
             }
