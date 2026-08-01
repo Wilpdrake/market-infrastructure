@@ -1,0 +1,38 @@
+# Production-only runtime policy. The base file remains useful for CI validation and local
+# integration tests, while this override adds automatic recovery and bounded log growth.
+services:
+  postgres:
+    restart: unless-stopped
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  backend:
+    restart: unless-stopped
+    init: true
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  frontend:
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "3"

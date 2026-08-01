@@ -190,6 +190,10 @@ pipeline {
         BACKEND_SECRET_KEY = credentials('backend-secret-key')
         FIRST_SUPERUSER_EMAIL = credentials('first-superuser-email')
         FIRST_SUPERUSER_PASSWORD = credentials('first-superuser-password')
+        // Username and role are identifiers rather than secrets; passwords and keys remain
+        // Jenkins Secret text credentials and are never echoed into the build log.
+        FIRST_SUPERUSER_USERNAME = 'owner'
+        FIRST_SUPERUSER_ROLE = 'owner'
     }
 
     stages {
@@ -242,7 +246,22 @@ pipeline {
                     telegramProgress(1)
                 }
                 dir('market-infrastructure') {
-                    sh 'docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet'
+                    sh '''
+                        set -eu
+                        docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
+
+                        # Build isolated CI targets so Jenkins does not need project-specific
+                        # Python or Node tooling installed on the host.
+                        docker build --target development -t market-backend-ci ../market-backend
+                        docker run --rm market-backend-ci uv run ruff check app tests alembic
+                        docker run --rm market-backend-ci uv run mypy app
+                        docker run --rm market-backend-ci uv run pytest -q
+
+                        docker build --target test -t market-frontend-ci ../market-frontend
+                        docker run --rm market-frontend-ci npm run lint
+                        docker run --rm market-frontend-ci npm run type-check
+                        docker run --rm market-frontend-ci npm test
+                    '''
                 }
             }
         }
@@ -401,13 +420,23 @@ pipeline {
                             printf 'POSTGRES_DB=%s\n' "$(quote_env "$POSTGRES_DB")"
                             printf 'BACKEND_SECRET_KEY=%s\n' "$(quote_env "$BACKEND_SECRET_KEY")"
                             printf 'FIRST_SUPERUSER_EMAIL=%s\n' "$(quote_env "$FIRST_SUPERUSER_EMAIL")"
+                            printf 'FIRST_SUPERUSER_USERNAME=%s\n' "$(quote_env "$FIRST_SUPERUSER_USERNAME")"
+                            printf 'FIRST_SUPERUSER_ROLE=%s\n' "$(quote_env "$FIRST_SUPERUSER_ROLE")"
                             printf 'FIRST_SUPERUSER_PASSWORD=%s\n' "$(quote_env "$FIRST_SUPERUSER_PASSWORD")"
                             printf 'FIRST_SUPERUSER_NAME=%s\n' 'Admin'
                             printf 'FIRST_SUPERUSER_SURNAME=%s\n' 'Administrator'
                         } > .env
 
                         test "$(stat -c '%a' .env)" = '600'
+                        # A one-shot container upgrades the schema before any new application
+                        # container starts serving requests against it.
+                        docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm backend alembic upgrade head
                         docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+                        # nginx.conf is bind-mounted and upstream addresses are resolved when
+                        # Nginx starts. Recreate only the proxy after application containers
+                        # have converged so it loads the new config and current container IPs.
+                        docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+                            up -d --no-deps --force-recreate nginx
                     '''
                 }
             }
@@ -421,18 +450,37 @@ pipeline {
                 }
                 sh '''
                     set -eu
+                    index_file=$(mktemp)
+                    asset_file=$(mktemp)
+                    trap 'rm -f "$index_file" "$asset_file"' EXIT
                     for attempt in $(seq 1 30); do
                         if curl -fsS --connect-timeout 2 --max-time 5 \
-                            http://127.0.0.1/ >/dev/null \
+                            http://127.0.0.1/ > "$index_file" \
+                            && grep -qi '<div id="app"' "$index_file" \
                             && curl -fsS --connect-timeout 2 --max-time 5 \
-                            http://127.0.0.1/api/v1/health/live >/dev/null \
+                            http://127.0.0.1/healthz >/dev/null \
+                            && curl -fsS --connect-timeout 2 --max-time 5 \
+                            http://127.0.0.1/admin | grep -qi '<div id="app"' \
                             && curl -fsS --connect-timeout 2 --max-time 5 \
                             http://127.0.0.1/api/v1/products >/dev/null \
                             && curl -fsS --connect-timeout 2 --max-time 5 \
                             http://127.0.0.1/openapi.json \
                             | jq -e '.openapi and (.paths | has("/api/v1/health/live"))' \
                             >/dev/null; then
-                            exit 0
+                            asset_path=$(sed -n \
+                                's/.*<script[^>]*src="\([^"]*\)".*/\1/p' \
+                                "$index_file" | head -n 1)
+                            admin_status=$(curl -sS --connect-timeout 2 --max-time 5 \
+                                -H 'Authorization: Bearer smoke-invalid-token' \
+                                -o /dev/null -w '%{http_code}' \
+                                http://127.0.0.1/api/v1/admin/auth/me || true)
+                            if test -n "$asset_path" \
+                                && curl -fsS --connect-timeout 2 --max-time 5 \
+                                    "http://127.0.0.1$asset_path" > "$asset_file" \
+                                && grep -Eq '/admin/(signin|dashboard)' "$asset_file" \
+                                && test "$admin_status" = '401'; then
+                                exit 0
+                            fi
                         fi
                         sleep 2
                     done
