@@ -188,12 +188,12 @@ pipeline {
         POSTGRES_PASSWORD = credentials('postgres-password')
         POSTGRES_DB = credentials('postgres-db')
         BACKEND_SECRET_KEY = credentials('backend-secret-key')
-        FIRST_SUPERUSER_EMAIL = credentials('first-superuser-email')
-        FIRST_SUPERUSER_PASSWORD = credentials('first-superuser-password')
+        FIRST_SUPERUSER_EMAIL = credentials('first-developer-email')
+        FIRST_SUPERUSER_PASSWORD = credentials('first-developer-password')
         // Username and role are identifiers rather than secrets; passwords and keys remain
         // Jenkins Secret text credentials and are never echoed into the build log.
-        FIRST_SUPERUSER_USERNAME = 'owner'
-        FIRST_SUPERUSER_ROLE = 'owner'
+        FIRST_SUPERUSER_USERNAME = 'wilpdrake'
+        FIRST_SUPERUSER_ROLE = 'developer'
     }
 
     stages {

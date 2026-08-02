@@ -31,12 +31,12 @@ not real credentials.
 | `POSTGRES_PASSWORD` | yes | PostgreSQL password; reserved URL characters are encoded by backend settings |
 | `POSTGRES_DB` | no | Database name |
 | `BACKEND_SECRET_KEY` | yes | JWT signing key, at least 32 random characters recommended |
-| `FIRST_SUPERUSER_EMAIL` | yes | Initial administrator login |
+| `FIRST_SUPERUSER_EMAIL` | yes | Initial highest-role developer login |
 | `FIRST_SUPERUSER_USERNAME` | no | Optional username accepted by the same login endpoint |
-| `FIRST_SUPERUSER_ROLE` | no | Explicit administration role: `owner`, `admin`, `moder`, or `developer` |
-| `FIRST_SUPERUSER_PASSWORD` | yes | Initial administrator password, at least 8 characters |
-| `FIRST_SUPERUSER_NAME` | no | Initial administrator first name |
-| `FIRST_SUPERUSER_SURNAME` | no | Initial administrator surname |
+| `FIRST_SUPERUSER_ROLE` | no | Explicit administration role; `developer` is the highest role |
+| `FIRST_SUPERUSER_PASSWORD` | yes | Initial developer password, at least 8 characters |
+| `FIRST_SUPERUSER_NAME` | no | Initial developer first name |
+| `FIRST_SUPERUSER_SURNAME` | no | Initial developer surname |
 | `TELEGRAM_BOT_TOKEN` | yes | Optional backend Telegram integration token |
 | `TELEGRAM_BOT_USERNAME` | no | Public username of the optional backend bot |
 | `TELEGRAM_WEBHOOK_SECRET` | yes | Optional backend webhook verification secret |
@@ -45,8 +45,8 @@ not real credentials.
 | `HTTP_PORT` | no | Public Nginx host port; defaults to `80` |
 
 `FIRST_SUPERUSER_EMAIL` and `FIRST_SUPERUSER_PASSWORD` must either both be present or both
-be absent. `FIRST_SUPERUSER_USERNAME` is optional. Bootstrap never promotes an existing
-regular account merely because its email matches.
+be absent. The production username is `wilpdrake` and its role is `developer`. Bootstrap
+never promotes an existing regular account merely because its email matches.
 
 Backend-only development uses `market-backend/.env`. Frontend build-time variables use
 `market-frontend/.env`; Vite exposes only variables prefixed with `VITE_`. With the production
@@ -63,8 +63,8 @@ Create these as **Secret text** credentials in Jenkins. The IDs must match exact
 | `postgres-password` | Strong password; reserved URL characters are supported |
 | `postgres-db` | Database name, for example `market` |
 | `backend-secret-key` | Random string of at least 32 characters |
-| `first-superuser-email` | Valid administrator email address |
-| `first-superuser-password` | Strong password of at least 8 characters |
+| `first-developer-email` | Valid developer email address |
+| `first-developer-password` | Strong password of at least 8 characters |
 
 The existing Telegram notification separately uses Secret text credential ID
 `telegram-bot-token` containing only the bot token.
@@ -105,10 +105,10 @@ POSTGRES_USER=market \
 POSTGRES_PASSWORD=test-only-url-safe-password \
 POSTGRES_DB=market \
 BACKEND_SECRET_KEY=test-only-secret-key-at-least-32 \
-FIRST_SUPERUSER_EMAIL=admin@example.com \
-FIRST_SUPERUSER_USERNAME=owner \
-FIRST_SUPERUSER_ROLE=owner \
-FIRST_SUPERUSER_PASSWORD=test-only-admin-password \
+FIRST_SUPERUSER_EMAIL=developer@example.com \
+FIRST_SUPERUSER_USERNAME=wilpdrake \
+FIRST_SUPERUSER_ROLE=developer \
+FIRST_SUPERUSER_PASSWORD=test-only-developer-password \
 FRONTEND_CONTEXT=../market-frontend \
 docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
 
