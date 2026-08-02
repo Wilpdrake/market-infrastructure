@@ -31,6 +31,14 @@ services:
   nginx:
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
+    ports:
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - ${CLOUDFLARE_ORIGIN_CERT_PATH:-/etc/market/tls/cloudflare-origin.pem}:/etc/nginx/tls/cloudflare-origin.pem:ro
+      - ${CLOUDFLARE_ORIGIN_KEY_PATH:-/etc/market/tls/cloudflare-origin.key}:/etc/nginx/tls/cloudflare-origin.key:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:8080/healthz"]
     logging:
       driver: local
       options:

@@ -43,6 +43,9 @@ not real credentials.
 | `BACKEND_CONTEXT` | no | Backend Docker build context; defaults to `../market-backend` |
 | `FRONTEND_CONTEXT` | no | Frontend Docker build context; defaults to `../market-frontend` |
 | `HTTP_PORT` | no | Public Nginx host port; defaults to `80` |
+| `HTTPS_PORT` | no | Production HTTPS host port; defaults to `443` |
+| `CLOUDFLARE_ORIGIN_CERT_PATH` | no | Host path to the Cloudflare Origin Certificate; defaults to `/etc/market/tls/cloudflare-origin.pem` |
+| `CLOUDFLARE_ORIGIN_KEY_PATH` | yes | Host path to its private key; defaults to `/etc/market/tls/cloudflare-origin.key` |
 
 `FIRST_SUPERUSER_EMAIL` and `FIRST_SUPERUSER_PASSWORD` must either both be present or both
 be absent. The production username is `wilpdrake` and its role is `developer`. Bootstrap
@@ -52,6 +55,24 @@ Backend-only development uses `market-backend/.env`. Frontend build-time variabl
 `market-frontend/.env`; Vite exposes only variables prefixed with `VITE_`. With the production
 same-origin gateway, `VITE_API_BASE_URL` stays empty, `VITE_API_VERSION=v1`, and
 `VITE_PUBLIC_PRODUCTS_PATH=products`.
+
+### Production HTTPS with Cloudflare
+
+Create an **Origin Server certificate** in Cloudflare for the site's hostname, then place the
+certificate and private key on the deployment host (not in the repository):
+
+```bash
+sudo install -d -m 700 /etc/market/tls
+sudo install -m 644 cloudflare-origin.pem /etc/market/tls/cloudflare-origin.pem
+sudo install -m 600 cloudflare-origin.key /etc/market/tls/cloudflare-origin.key
+```
+
+The production Compose override mounts these files read-only, publishes ports 80 and 443, and
+uses `nginx.prod.conf`. Port 80 only redirects to HTTPS. If different host paths are required,
+set `CLOUDFLARE_ORIGIN_CERT_PATH` and `CLOUDFLARE_ORIGIN_KEY_PATH` in the deployment environment.
+Set Cloudflare **SSL/TLS encryption mode** to **Full (strict)** after the certificate is installed,
+and ensure the DNS record is proxied. A Cloudflare Origin Certificate is trusted by Cloudflare,
+not by ordinary browsers connecting directly to the origin; that is expected.
 
 ## Jenkins Credentials
 
@@ -113,6 +134,6 @@ FRONTEND_CONTEXT=../market-frontend \
 docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet
 
 # Runtime checks.
-curl -fsS http://127.0.0.1/healthz
-curl -fsS http://127.0.0.1/api/v1/products
+curl -kfsS https://127.0.0.1/healthz
+curl -kfsS https://127.0.0.1/api/v1/products
 ```

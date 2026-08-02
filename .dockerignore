@@ -6,5 +6,6 @@
 **/.venv
 **/.env
 **/.env.*
+**/certs
 **/node_modules
 **/dist

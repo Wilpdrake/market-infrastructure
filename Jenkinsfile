@@ -431,6 +431,16 @@ pipeline {
                         } > .env
 
                         test "$(stat -c '%a' .env)" = '600'
+                        tls_cert_path=${CLOUDFLARE_ORIGIN_CERT_PATH:-/etc/market/tls/cloudflare-origin.pem}
+                        tls_key_path=${CLOUDFLARE_ORIGIN_KEY_PATH:-/etc/market/tls/cloudflare-origin.key}
+                        test -f "$tls_cert_path" || {
+                            echo "Cloudflare Origin Certificate is missing: $tls_cert_path" >&2
+                            exit 1
+                        }
+                        test -f "$tls_key_path" || {
+                            echo "Cloudflare Origin private key is missing: $tls_key_path" >&2
+                            exit 1
+                        }
                         # A one-shot container upgrades the schema before any new application
                         # container starts serving requests against it.
                         docker compose -f docker-compose.yml -f docker-compose.prod.yml run --rm backend alembic upgrade head
@@ -456,18 +466,19 @@ pipeline {
                     index_file=$(mktemp)
                     asset_file=$(mktemp)
                     trap 'rm -f "$index_file" "$asset_file"' EXIT
+                    base_url=https://127.0.0.1
                     for attempt in $(seq 1 30); do
-                        if curl -fsS --connect-timeout 2 --max-time 5 \
-                            http://127.0.0.1/ > "$index_file" \
+                        if curl -kfsS --connect-timeout 2 --max-time 5 \
+                            "$base_url/" > "$index_file" \
                             && grep -qi '<div id="app"' "$index_file" \
-                            && curl -fsS --connect-timeout 2 --max-time 5 \
-                            http://127.0.0.1/healthz >/dev/null \
-                            && curl -fsS --connect-timeout 2 --max-time 5 \
-                            http://127.0.0.1/admin | grep -qi '<div id="app"' \
-                            && curl -fsS --connect-timeout 2 --max-time 5 \
-                            http://127.0.0.1/api/v1/products >/dev/null \
-                            && curl -fsS --connect-timeout 2 --max-time 5 \
-                            http://127.0.0.1/openapi.json \
+                            && curl -kfsS --connect-timeout 2 --max-time 5 \
+                            "$base_url/healthz" >/dev/null \
+                            && curl -kfsS --connect-timeout 2 --max-time 5 \
+                            "$base_url/admin" | grep -qi '<div id="app"' \
+                            && curl -kfsS --connect-timeout 2 --max-time 5 \
+                            "$base_url/api/v1/products" >/dev/null \
+                            && curl -kfsS --connect-timeout 2 --max-time 5 \
+                            "$base_url/openapi.json" \
                             | jq -e '.openapi and (.paths | has("/api/v1/health/live"))' \
                             >/dev/null; then
                             asset_path=$(
@@ -476,13 +487,13 @@ pipeline {
                                     | grep -oE 'src="[^"]+"' \
                                     | cut -d'"' -f2
                             )
-                            admin_status=$(curl -sS --connect-timeout 2 --max-time 5 \
+                            admin_status=$(curl -ksS --connect-timeout 2 --max-time 5 \
                                 -H 'Authorization: Bearer smoke-invalid-token' \
                                 -o /dev/null -w '%{http_code}' \
-                                http://127.0.0.1/api/v1/admin/auth/me || true)
+                                "$base_url/api/v1/admin/auth/me" || true)
                             if test -n "$asset_path" \
-                                && curl -fsS --connect-timeout 2 --max-time 5 \
-                                    "http://127.0.0.1$asset_path" > "$asset_file" \
+                                && curl -kfsS --connect-timeout 2 --max-time 5 \
+                                    "$base_url$asset_path" > "$asset_file" \
                                 && grep -Eq '/admin/(signin|dashboard)' "$asset_file" \
                                 && test "$admin_status" = '401'; then
                                 exit 0
