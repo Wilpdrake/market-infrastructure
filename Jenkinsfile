@@ -1,3 +1,6 @@
+// TODO Refactor
+
+
 def buildInitiator() {
     try {
         def githubCauses = currentBuild.getBuildCauses('com.cloudbees.jenkins.GitHubPushCause')
