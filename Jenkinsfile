@@ -467,9 +467,12 @@ pipeline {
                             http://127.0.0.1/openapi.json \
                             | jq -e '.openapi and (.paths | has("/api/v1/health/live"))' \
                             >/dev/null; then
-                            asset_path=$(sed -n \
-                                's/.*<script[^>]*src="\([^"]*\)".*/\1/p' \
-                                "$index_file" | head -n 1)
+                            asset_path=$(
+                                grep -oE '<script[^>]+src="[^"]+"' "$index_file" \
+                                    | head -n 1 \
+                                    | grep -oE 'src="[^"]+"' \
+                                    | cut -d'"' -f2
+                            )
                             admin_status=$(curl -sS --connect-timeout 2 --max-time 5 \
                                 -H 'Authorization: Bearer smoke-invalid-token' \
                                 -o /dev/null -w '%{http_code}' \
