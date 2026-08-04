@@ -1,11 +1,27 @@
 // TODO Refactor
 
 
+def githubPusherFromCauses(causes) {
+    for (def cause : causes ?: []) {
+        if (cause.pushedBy) {
+            return cause.pushedBy
+        }
+
+        def upstreamPusher = githubPusherFromCauses(cause.upstreamCauses)
+        if (upstreamPusher) {
+            return upstreamPusher
+        }
+    }
+
+    return null
+}
+
 def buildInitiator() {
     try {
-        def githubCauses = currentBuild.getBuildCauses('com.cloudbees.jenkins.GitHubPushCause')
-        if (githubCauses && githubCauses[0].pushedBy) {
-            return githubCauses[0].pushedBy
+        def causes = currentBuild.getBuildCauses()
+        def githubPusher = githubPusherFromCauses(causes)
+        if (githubPusher) {
+            return githubPusher
         }
 
         def userCauses = currentBuild.getBuildCauses('hudson.model.Cause$UserIdCause')
@@ -13,7 +29,6 @@ def buildInitiator() {
             return userCauses[0].userName
         }
 
-        def causes = currentBuild.getBuildCauses()
         if (causes && causes[0].shortDescription) {
             def description = causes[0].shortDescription
             def githubPrefix = 'Started by GitHub push by '
@@ -489,15 +504,34 @@ pipeline {
                     asset_file=$(mktemp)
                     trap 'rm -f "$index_file" "$asset_file"' EXIT
                     base_url=https://127.0.0.1
+                    bot_stable_restarts=
+                    bot_stable_since=0
                     for attempt in $(seq 1 30); do
                         bot_id=$(docker compose \
                             -f market-infrastructure/docker-compose.yml \
                             -f market-infrastructure/docker-compose.prod.yml \
                             ps -q bot 2>/dev/null || true)
                         bot_state=$(docker inspect \
-                            --format '{{.State.Status}}|{{.State.Restarting}}|{{.RestartCount}}' \
+                            --format '{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}|{{.RestartCount}}' \
                             "$bot_id" 2>/dev/null || true)
-                        if test "$bot_state" = 'running|false|0' \
+                        bot_status=${bot_state%%|*}
+                        bot_state_tail=${bot_state#*|}
+                        bot_health=${bot_state_tail%%|*}
+                        bot_restarts=${bot_state##*|}
+                        bot_ready=false
+                        if test "$bot_status" = running && test "$bot_health" = healthy; then
+                            now=$(date +%s)
+                            if test "$bot_stable_restarts" != "$bot_restarts"; then
+                                bot_stable_restarts=$bot_restarts
+                                bot_stable_since=$now
+                            elif test $((now - bot_stable_since)) -ge 10; then
+                                bot_ready=true
+                            fi
+                        else
+                            bot_stable_restarts=
+                            bot_stable_since=0
+                        fi
+                        if test "$bot_ready" = true \
                             && curl -kfsS --connect-timeout 2 --max-time 5 \
                             "$base_url/" > "$index_file" \
                             && grep -qi '<div id="app"' "$index_file" \
@@ -535,6 +569,10 @@ pipeline {
                     echo "Production smoke test failed" >&2
                     docker ps -a --filter 'name=market-' \
                         --format 'table {{.Names}}\t{{.Status}}\t{{.Image}}' >&2
+                    docker compose \
+                        -f market-infrastructure/docker-compose.yml \
+                        -f market-infrastructure/docker-compose.prod.yml \
+                        logs --tail 100 bot >&2 || true
                     exit 1
                 '''
             }
