@@ -224,7 +224,7 @@ pipeline {
 
                 dir('market-backend') {
                     git branch: 'main',
-                        url: 'git@github.com:wilpdrake/market-backend'
+                        url: 'git@github.com:Wilpdrake/market-backend.git'
                 }
 
                 dir('market-frontend') {
@@ -234,7 +234,7 @@ pipeline {
 
                 dir('market-bot') {
                     git branch: 'main',
-                        url: 'git@github.com:wilpdrake/market-bot.git'
+                        url: 'git@github.com:Wilpdrake/market-bot.git'
                 }
 
                 script {
