@@ -37,11 +37,13 @@ not real credentials.
 | `FIRST_SUPERUSER_PASSWORD` | yes | Initial developer password, at least 8 characters |
 | `FIRST_SUPERUSER_NAME` | no | Initial developer first name |
 | `FIRST_SUPERUSER_SURNAME` | no | Initial developer surname |
-| `TELEGRAM_BOT_TOKEN` | yes | Optional backend Telegram integration token |
+| `TELEGRAM_BOT_TOKEN` | yes | Required token for the polling bot in production; keep `TELEGRAM_WEBHOOK_SECRET` empty while polling |
 | `TELEGRAM_BOT_USERNAME` | no | Public username of the optional backend bot |
 | `TELEGRAM_WEBHOOK_SECRET` | yes | Optional backend webhook verification secret |
 | `BACKEND_CONTEXT` | no | Backend Docker build context; defaults to `../market-backend` |
 | `FRONTEND_CONTEXT` | no | Frontend Docker build context; defaults to `../market-frontend` |
+| `BOT_CONTEXT` | no | Bot Docker build context; defaults to `../market-bot` |
+| `BOT_LOG_LEVEL` | no | Bot logging level; defaults to `INFO` |
 | `HTTP_PORT` | no | Public Nginx host port; defaults to `80` |
 | `HTTPS_PORT` | no | Production HTTPS host port; defaults to `443` |
 | `CLOUDFLARE_ORIGIN_CERT_PATH` | no | Host path to the Cloudflare Origin Certificate; defaults to `/etc/market/tls/cloudflare-origin.pem` |
@@ -86,13 +88,11 @@ Create these as **Secret text** credentials in Jenkins. The IDs must match exact
 | `backend-secret-key` | Random string of at least 32 characters |
 | `first-developer-email` | Valid developer email address |
 | `first-developer-password` | Strong password of at least 8 characters |
+| `telegram-bot-token` | BotFather token as a plain Secret text value, without quotes or prefixes |
 
-The existing Telegram notification separately uses Secret text credential ID
-`telegram-bot-token` containing only the bot token.
-
-That Jenkins notification credential is intentionally not written to the application `.env`.
-Backend Telegram integration remains disabled until separate application credentials are
-provisioned; notification and application bots must not share a secret implicitly.
+Credential `telegram-bot-token` is used for Jenkins build notifications and supplied to the
+polling bot at runtime during deployment. Jenkins masks it, and the pipeline never passes it to
+a Docker build argument or image layer.
 
 Do not add production values to Jenkins global environment variables, repository files,
 job parameters, or console-visible shell commands. The Declarative `environment` block
@@ -111,9 +111,9 @@ The pipeline deliberately handles environment data as follows:
    `umask 077`, and verifies mode `0600`.
 6. A one-shot backend container runs `alembic upgrade head`; only then does Compose update
    application containers. The temporary `.env` is removed automatically.
-7. Smoke tests verify the SPA root and `/admin`, backend health, database-backed
-   `/api/v1/products`, and the
-   semantic OpenAPI document.
+7. Smoke tests require the bot to report `healthy` after Telegram API initialization and remain
+   restart-free for a stability interval. They also verify the SPA root and `/admin`, backend
+   health, database-backed `/api/v1/products`, and the semantic OpenAPI document.
 
 Never print `.env`, run `docker compose config` without redaction in logs, archive/stash the
 file, or add it to security-report artifacts.

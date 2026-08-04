@@ -24,6 +24,7 @@ services:
     environment:
       ENVIRONMENT: production
       DEBUG: "false"
+      UPLOAD_DIR: /app/uploads
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_HOST: postgres
@@ -43,6 +44,8 @@ services:
       postgres:
         condition: service_healthy
     expose: ["8000"]
+    volumes:
+      - product_uploads:/app/uploads
     healthcheck:
       test:
         [
@@ -104,6 +107,7 @@ services:
 
 volumes:
   postgres_data:
+  product_uploads:
 
 networks:
   market:
