@@ -232,11 +232,17 @@ pipeline {
                         url: 'git@github.com:yushiri/market-order.git'
                 }
 
+                dir('market-bot') {
+                    git branch: 'main',
+                        url: 'git@github.com:wilpdrake/market-bot.git'
+                }
+
                 script {
                     env.GIT_SUMMARY = [
                         gitRevisionLine('market-infrastructure', 'Wilpdrake/market-infrastructure'),
                         gitRevisionLine('market-backend', 'wilpdrake/market-backend'),
                         gitRevisionLine('market-frontend', 'yushiri/market-order'),
+                        gitRevisionLine('market-bot', 'wilpdrake/market-bot'),
                     ].join('\n')
                 }
             }
@@ -259,6 +265,12 @@ pipeline {
                         docker run --rm market-backend-ci uv run ruff check app tests alembic
                         docker run --rm market-backend-ci uv run mypy app
                         docker run --rm market-backend-ci uv run pytest -q
+
+                        docker build --target development -t market-bot-ci ../market-bot
+                        docker run --rm market-bot-ci uv run --no-sync ruff check src tests
+                        docker run --rm market-bot-ci uv run --no-sync ruff format --check src tests
+                        docker run --rm market-bot-ci uv run --no-sync mypy
+                        docker run --rm market-bot-ci uv run --no-sync pytest -q
 
                         docker build --target test -t market-frontend-ci ../market-frontend
                         docker run --rm market-frontend-ci npm run lint
@@ -304,6 +316,7 @@ pipeline {
                             --skip-dirs /workspace/market-infrastructure/.git \
                             --skip-dirs /workspace/market-backend/.git \
                             --skip-dirs /workspace/market-frontend/.git \
+                            --skip-dirs /workspace/market-bot/.git \
                             /workspace
                     '''
                     script {
@@ -388,6 +401,9 @@ pipeline {
         }
 
         stage('Deploy') {
+            environment {
+                TELEGRAM_BOT_TOKEN = credentials('telegram-bot-token')
+            }
             steps {
                 script {
                     env.STAGE_INDEX = '6'
@@ -406,6 +422,10 @@ pipeline {
                         }
                         test "${#FIRST_SUPERUSER_PASSWORD}" -ge 8 || {
                             echo 'FIRST_SUPERUSER_PASSWORD must contain at least 8 characters' >&2
+                            exit 1
+                        }
+                        test -n "$TELEGRAM_BOT_TOKEN" || {
+                            echo 'TELEGRAM_BOT_TOKEN must not be empty' >&2
                             exit 1
                         }
                         case "$FIRST_SUPERUSER_EMAIL" in
@@ -428,6 +448,8 @@ pipeline {
                             printf 'FIRST_SUPERUSER_PASSWORD=%s\n' "$(quote_env "$FIRST_SUPERUSER_PASSWORD")"
                             printf 'FIRST_SUPERUSER_NAME=%s\n' 'Admin'
                             printf 'FIRST_SUPERUSER_SURNAME=%s\n' 'Administrator'
+                            printf 'TELEGRAM_BOT_TOKEN=%s\n' "$(quote_env "$TELEGRAM_BOT_TOKEN")"
+                            printf 'BOT_LOG_LEVEL=%s\n' 'INFO'
                         } > .env
 
                         test "$(stat -c '%a' .env)" = '600'
@@ -468,7 +490,15 @@ pipeline {
                     trap 'rm -f "$index_file" "$asset_file"' EXIT
                     base_url=https://127.0.0.1
                     for attempt in $(seq 1 30); do
-                        if curl -kfsS --connect-timeout 2 --max-time 5 \
+                        bot_id=$(docker compose \
+                            -f market-infrastructure/docker-compose.yml \
+                            -f market-infrastructure/docker-compose.prod.yml \
+                            ps -q bot 2>/dev/null || true)
+                        bot_state=$(docker inspect \
+                            --format '{{.State.Status}}|{{.State.Restarting}}|{{.RestartCount}}' \
+                            "$bot_id" 2>/dev/null || true)
+                        if test "$bot_state" = 'running|false|0' \
+                            && curl -kfsS --connect-timeout 2 --max-time 5 \
                             "$base_url/" > "$index_file" \
                             && grep -qi '<div id="app"' "$index_file" \
                             && curl -kfsS --connect-timeout 2 --max-time 5 \

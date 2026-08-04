@@ -75,6 +75,15 @@ services:
       retries: 10
     networks: [market]
 
+  bot:
+    build:
+      context: ${BOT_CONTEXT:-../market-bot}
+      target: production
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      LOG_LEVEL: ${BOT_LOG_LEVEL:-INFO}
+    networks: [market]
+
   nginx:
     image: nginx:1.27-alpine
     ports:
