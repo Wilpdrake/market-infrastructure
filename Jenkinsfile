@@ -519,7 +519,8 @@ pipeline {
                         bot_health=${bot_state_tail%%|*}
                         bot_restarts=${bot_state##*|}
                         bot_ready=false
-                        if test "$bot_status" = running && test "$bot_health" = healthy; then
+                        if test "$bot_status" = running \
+                            && { test "$bot_health" = healthy || test "$bot_health" = none; }; then
                             now=$(date +%s)
                             if test "$bot_stable_restarts" != "$bot_restarts"; then
                                 bot_stable_restarts=$bot_restarts
