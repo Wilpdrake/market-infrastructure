@@ -9,6 +9,20 @@ pipeline {
         timestamps()
     }
 
+    parameters {
+        string(
+            name: 'TRIGGER_REPOSITORY',
+            defaultValue: 'manual',
+            description: 'Репозиторий, инициировавший сборку'
+        )
+
+        string(
+            name: 'TRIGGER_COMMIT',
+            defaultValue: '',
+            description: 'Commit SHA, вызвавший сборку'
+        )
+    }
+    
     environment {
         GIT_CREDENTIALS_ID = 'github-ssh'
         COMPOSE_PROJECT_NAME = 'market'
