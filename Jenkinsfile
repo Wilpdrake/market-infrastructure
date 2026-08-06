@@ -239,16 +239,19 @@ pipeline {
 
                 dir('market-backend') {
                     git branch: 'main',
+                        credentialsId: 'github-ssh',
                         url: 'git@github.com:Wilpdrake/market-backend.git'
                 }
 
                 dir('market-frontend') {
                     git branch: 'main',
+                        credentialsId: 'github-ssh',
                         url: 'git@github.com:yushiri/market-order.git'
                 }
 
                 dir('market-bot') {
                     git branch: 'main',
+                        credentialsId: 'github-ssh',
                         url: 'git@github.com:Wilpdrake/market-bot.git'
                 }
 
