@@ -24,6 +24,11 @@ pipeline {
     // }
 
     environment {
+        POSTGRES_USER     = credentials('postgres-user')
+        POSTGRES_PASSWORD = credentials('postgres-password')
+        POSTGRES_DB       = credentials('postgres-db')
+        BACKEND_SECRET_KEY = credentials('backend-secret-key')
+
         GIT_CREDENTIALS_ID = 'github-ssh'
         COMPOSE_PROJECT_NAME = 'market'
     }
