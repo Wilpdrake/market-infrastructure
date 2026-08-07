@@ -9,20 +9,20 @@ pipeline {
         timestamps()
     }
 
-    parameters {
-        string(
-            name: 'TRIGGER_REPOSITORY',
-            defaultValue: 'manual',
-            description: 'Репозиторий, инициировавший сборку'
-        )
+    // parameters {
+    //     string(
+    //         name: 'TRIGGER_REPOSITORY',
+    //         defaultValue: 'manual',
+    //         description: 'Репозиторий, инициировавший сборку'
+    //     )
 
-        string(
-            name: 'TRIGGER_COMMIT',
-            defaultValue: '',
-            description: 'Commit SHA, вызвавший сборку'
-        )
-    }
-    
+    //     string(
+    //         name: 'TRIGGER_COMMIT',
+    //         defaultValue: '',
+    //         description: 'Commit SHA, вызвавший сборку'
+    //     )
+    // }
+
     environment {
         GIT_CREDENTIALS_ID = 'github-ssh'
         COMPOSE_PROJECT_NAME = 'market'
@@ -89,21 +89,21 @@ pipeline {
             }
         }
 
-        stage('Information') {
-            steps {
-                echo """
-                    Trigger repository: ${params.TRIGGER_REPOSITORY}
-                    Trigger commit:     ${params.TRIGGER_COMMIT}
-                """.stripIndent()
+        // stage('Information') {
+        //     steps {
+        //         echo """
+        //             Trigger repository: ${params.TRIGGER_REPOSITORY}
+        //             Trigger commit:     ${params.TRIGGER_COMMIT}
+        //         """.stripIndent()
 
-                sh '''
-                    echo "Infrastructure: $(git -C market-infrastructure rev-parse HEAD)"
-                    echo "Backend:        $(git -C market-backend rev-parse HEAD)"
-                    echo "Bot:            $(git -C market-bot rev-parse HEAD)"
-                    echo "Frontend:       $(git -C market-frontend rev-parse HEAD)"
-                '''
-            }
-        }
+        //         sh '''
+        //             echo "Infrastructure: $(git -C market-infrastructure rev-parse HEAD)"
+        //             echo "Backend:        $(git -C market-backend rev-parse HEAD)"
+        //             echo "Bot:            $(git -C market-bot rev-parse HEAD)"
+        //             echo "Frontend:       $(git -C market-frontend rev-parse HEAD)"
+        //         '''
+        //     }
+        // }
 
         stage('Validate') {
             steps {
