@@ -3,54 +3,32 @@ pipeline {
 
     options {
         skipDefaultCheckout(true)
-
         disableConcurrentBuilds()
-
         timestamps()
     }
 
-    // parameters {
-    //     string(
-    //         name: 'TRIGGER_REPOSITORY',
-    //         defaultValue: 'manual',
-    //         description: 'Репозиторий, инициировавший сборку'
-    //     )
-
-    //     string(
-    //         name: 'TRIGGER_COMMIT',
-    //         defaultValue: '',
-    //         description: 'Commit SHA, вызвавший сборку'
-    //     )
-    // }
-
     environment {
-        POSTGRES_USER     = credentials('postgres-user')
-        POSTGRES_PASSWORD = credentials('postgres-password')
-        POSTGRES_DB       = credentials('postgres-db')
-        BACKEND_SECRET_KEY = credentials('backend-secret-key')
+        POSTGRES_USER       = credentials('postgres-user')
+        POSTGRES_PASSWORD   = credentials('postgres-password')
+        POSTGRES_DB         = credentials('postgres-db')
+        BACKEND_SECRET_KEY  = credentials('backend-secret-key')
 
-        GIT_CREDENTIALS_ID = 'github-ssh'
+        GIT_CREDENTIALS_ID  = 'github-ssh'
         COMPOSE_PROJECT_NAME = 'market'
     }
 
     stages {
-        stage('Checkout infrastructure') {
+        stage('Checkout') {
             steps {
-                dir('market-infrastructure') {
-                    checkout([
-                        $class: 'GitSCM',
-                        branches: [[name: '*/main']],
-                        userRemoteConfigs: [[
-                            url: 'git@github.com:Wilpdrake/market-infrastructure.git',
-                            credentialsId: env.GIT_CREDENTIALS_ID
-                        ]]
-                    ])
-                }
-            }
-        }
+                checkout([
+                    $class: 'GitSCM',
+                    branches: [[name: '*/main']],
+                    userRemoteConfigs: [[
+                        url: 'git@github.com:Wilpdrake/market-infrastructure.git',
+                        credentialsId: env.GIT_CREDENTIALS_ID
+                    ]]
+                ])
 
-        stage('Checkout backend') {
-            steps {
                 dir('market-backend') {
                     checkout([
                         $class: 'GitSCM',
@@ -61,11 +39,7 @@ pipeline {
                         ]]
                     ])
                 }
-            }
-        }
 
-        stage('Checkout bot') {
-            steps {
                 dir('market-bot') {
                     checkout([
                         $class: 'GitSCM',
@@ -76,11 +50,7 @@ pipeline {
                         ]]
                     ])
                 }
-            }
-        }
 
-        stage('Checkout frontend') {
-            steps {
                 dir('market-frontend') {
                     checkout([
                         $class: 'GitSCM',
@@ -93,22 +63,6 @@ pipeline {
                 }
             }
         }
-
-        // stage('Information') {
-        //     steps {
-        //         echo """
-        //             Trigger repository: ${params.TRIGGER_REPOSITORY}
-        //             Trigger commit:     ${params.TRIGGER_COMMIT}
-        //         """.stripIndent()
-
-        //         sh '''
-        //             echo "Infrastructure: $(git -C market-infrastructure rev-parse HEAD)"
-        //             echo "Backend:        $(git -C market-backend rev-parse HEAD)"
-        //             echo "Bot:            $(git -C market-bot rev-parse HEAD)"
-        //             echo "Frontend:       $(git -C market-frontend rev-parse HEAD)"
-        //         '''
-        //     }
-        // }
 
         stage('Validate') {
             steps {
