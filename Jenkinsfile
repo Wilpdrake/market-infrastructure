@@ -137,10 +137,17 @@ pipeline {
 
     post {
         cleanup {
-            cleanWs(
-                deleteDirs: true,
-                disableDeferredWipeout: true
-            )
+            // cleanWs requires a workspace FilePath. If the build aborts before
+            // one is acquired (e.g. a missing credential in `environment`), the
+            // step throws "Required context class hudson.FilePath is missing"
+            // and masks the real failure. Guard it so the genuine error stays
+            // visible and the build still fails for the right reason.
+            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                cleanWs(
+                    deleteDirs: true,
+                    disableDeferredWipeout: true
+                )
+            }
         }
     }
 }
