@@ -18,17 +18,23 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') {
+        stage('Checkout infrastructure') {
             steps {
-                checkout([
-                    $class: 'GitSCM',
-                    branches: [[name: '*/main']],
-                    userRemoteConfigs: [[
-                        url: 'git@github.com:Wilpdrake/market-infrastructure.git',
-                        credentialsId: env.GIT_CREDENTIALS_ID
-                    ]]
-                ])
+                dir('market-infrastructure') {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: '*/main']],
+                        userRemoteConfigs: [[
+                            url: 'git@github.com:Wilpdrake/market-infrastructure.git',
+                            credentialsId: env.GIT_CREDENTIALS_ID
+                        ]]
+                    ])
+                }
+            }
+        }
 
+        stage('Checkout backend') {
+            steps {
                 dir('market-backend') {
                     checkout([
                         $class: 'GitSCM',
@@ -39,7 +45,11 @@ pipeline {
                         ]]
                     ])
                 }
+            }
+        }
 
+        stage('Checkout bot') {
+            steps {
                 dir('market-bot') {
                     checkout([
                         $class: 'GitSCM',
@@ -50,7 +60,11 @@ pipeline {
                         ]]
                     ])
                 }
+            }
+        }
 
+        stage('Checkout frontend') {
+            steps {
                 dir('market-frontend') {
                     checkout([
                         $class: 'GitSCM',
