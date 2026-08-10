@@ -5,6 +5,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER is required}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
       POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB is required}
+    ports:
+      # Expose to the host so a backend running outside Docker (uv, not the
+      # container) can reach it. Bind to localhost only — never publish 5432.
+      - "127.0.0.1:5432:5432"
     volumes:
       # PostgreSQL 18 stores versioned data below this directory.
       - postgres_data:/var/lib/postgresql
@@ -37,6 +41,12 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_BOT_USERNAME: ${TELEGRAM_BOT_USERNAME:-market_bot}
       TELEGRAM_WEBHOOK_SECRET: ${TELEGRAM_WEBHOOK_SECRET:-}
+      TBANK_TERMINAL_KEY: ${TBANK_TERMINAL_KEY:?TBANK_TERMINAL_KEY is required}
+      TBANK_PASSWORD: ${TBANK_PASSWORD:?TBANK_PASSWORD is required}
+      TBANK_API_URL: ${TBANK_API_URL:-https://securepay.tinkoff.ru/v2}
+      TBANK_SUCCESS_URL: ${TBANK_SUCCESS_URL:?TBANK_SUCCESS_URL is required}
+      TBANK_FAIL_URL: ${TBANK_FAIL_URL:?TBANK_FAIL_URL is required}
+      TBANK_NOTIFICATION_URL: ${TBANK_NOTIFICATION_URL:?TBANK_NOTIFICATION_URL is required}
     depends_on:
       postgres:
         condition: service_healthy
