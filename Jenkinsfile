@@ -25,8 +25,8 @@ pipeline {
         FIRST_SUPERUSER_USERNAME = credentials('first-superuser-username')
         FIRST_SUPERUSER_ROLE     = 'developer'
         FIRST_SUPERUSER_PASSWORD = credentials('first-superuser-password')
-        FIRST_SUPERUSER_NAME     = 'Admin'
-        FIRST_SUPERUSER_SURNAME  = 'Administrator'
+        FIRST_SUPERUSER_NAME     = 'DevOps'
+        FIRST_SUPERUSER_SURNAME  = 'Developer'
 
         GIT_CREDENTIALS_ID  = 'github-ssh'
         COMPOSE_PROJECT_NAME = 'market'
